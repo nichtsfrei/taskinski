@@ -37,23 +37,29 @@
         height: 100%;
       }
 
-      #preview,
+      #menu,
       #board,
       #taskedit {
-        flex-direction: column;
-        gap: 2vh;
-        padding: 2vh;
         width: 99%;
         margin: auto;
         background-color: var(--bg-color-content);
         border-radius: 8px;
-        border: 1px solid #ccc;
-        min-height: 80vh;
+        border: 1px solid var(--acent-color);
       }
 
-      #board {
-        align-items: center;
+      #menu {
+        padding: 0.5vh;
+        gap: 0.5vh;
+        margin-bottom: 0.5vh;
       }
+
+      #board,
+      #taskedit {
+        gap: 2vh;
+        padding: 2vh;
+        width: 99%;
+      }
+
       #taskedit {
         #taskidgroup {
           flex-direction: row;
@@ -83,21 +89,35 @@
         }
       }
 
-      .container {
-        display: flex;
-        justify-content: space-between;
-        gap: 1vh;
-        width: 100%;
+
+      #board {
+        align-items: center;
       }
 
+      .container {
+        /* maybe hidden would work as well? */
+        overflow-x: hidden;
+        display: flex;
+        scroll-snap-type: x mandatory;
+        width: 100%;
+        <!-- justify-content: space-between; -->
+        <!-- gap: 1vh; -->
+      }
+
+      /* doesn't work on ff :/*/
+      <!-- .container::-webkit-scrollbar { -->
+      <!--   display: none; -->
+      <!-- } -->
+
       .column {
+        scroll-snap-align: center;
+        flex: 0 0 22rem;
         background-color: var(--bg-color-content-box);
-        /* max title or data */
-        width: 30%;
         padding: 1rem;
         border-radius: 5px;
         box-shadow: 0 2px 10px var(--acent-color);
         min-height: 80vh;
+        margin: 0.5rem;
       }
 
       .column-title {
@@ -107,8 +127,7 @@
         text-align: center;
       }
 
-      .card,
-      .preview-card {
+      .card {
         background: var(--card-background);
         border-radius: 16px;
         box-shadow: 0 4px 30px var(--card-shadow);
@@ -125,11 +144,11 @@
           overflow-wrap: break-word;
           word-wrap: break-word;
         }
-
-        .description {
-          font-size: 0.75em;
-        }
       }
+
+      <!-- .column details[open] { -->
+      <!--   width: 90vw; -->
+      <!-- } -->
 
       .card:hover {
         background-color: var(--card-shadow);
@@ -152,7 +171,7 @@
     </style>
   </head>
   <body>
-    <div id="menu">
+    <div id="menu" , class="menu">
       <a href="#new">New task</a> <a href="#exporthtml">Export as HTML</a>
     </div>
     <div id="canvas">
@@ -168,20 +187,8 @@
           <a id="taskeditcancel" href="#/">Cancel</a>
         </div>
       </div>
-      <div id="preview" , class="hidden">
-        <div id="preview-content" class="preview-card">
-          <div class="content">
-            <h1 id="previewtitle"></h1>
-            <div id="previewdescription" class="description"></div>
-          </div>
-        </div>
-        <div class="buttons">
-          <a id="previewedit" href="#edit">Edit</a>
-          <a id="previewclose" href="#/">Close</a>
-        </div>
-      </div>
       <div id="board" class="flex">
-        <div class="container">
+        <div id="container" class="container">
           <div
             class="column"
             id="c1"
@@ -208,6 +215,15 @@
             ondragover="allowDrop(event)"
           >
             <h2 class="column-title">Done</h2>
+          </div>
+          <div
+            class="column"
+            id="c4"
+            title="Extra"
+            ondrop="drop(event)"
+            ondragover="allowDrop(event)"
+          >
+            <h2 class="column-title">4th</h2>
           </div>
         </div>
       </div>
@@ -262,15 +278,11 @@
       //TODO: rename or better create a module which holds them
       // TODO: get rid of those const
       const edit = document.getElementById("taskedit");
-      const view = document.getElementById("preview");
       const tie = document.getElementById("taskid");
       const tti = document.getElementById("tasktitle");
       const tde = document.getElementById("taskdescr");
       const tesubmit = document.getElementById("taskeditsubmit");
       const tedelete = document.getElementById("taskeditdelete");
-
-      const teprevtitle = document.getElementById("previewtitle");
-      const teprevdescription = document.getElementById("previewdescription");
 
       function hide_element(element) {
         element.classList.remove("flex");
@@ -284,7 +296,6 @@
 
       function hideEditShowBoard() {
         hide_element(edit);
-        hide_element(preview);
         show_element(board);
       }
 
@@ -322,7 +333,6 @@
         else if (action === "submit") submit(id);
         else if (action === "delete") removeTask(id);
         else if (action === "exporthtml") exportHtml();
-        else if (action === "view") viewTask(id);
       }
 
       function getUnsyncedEvents() {
@@ -360,7 +370,7 @@
 
         if (title) {
           let event = put(id, title, description);
-          const card = createKanbanCard(storeEvent(event));
+          const card = newTaskCard(storeEvent(event));
           replaceElement(backlog, card);
         }
 
@@ -387,43 +397,40 @@
       //     element.style.backgroundImage = gradient;
       // }
 
-      function createKanbanCard(
-        task,
-        showDescription = false,
-        draggable = true,
-      ) {
-        const kanbanCard = document.createElement("div");
+      function newTaskCard(task, showDescription = false, draggable = true) {
+        const card = document.createElement("details");
 
-        kanbanCard.setAttribute("id", task.id);
-        kanbanCard.classList.add("card");
-        kanbanCard.addEventListener("click", function () {
-          location.href = `#view?id=${task.id}`;
-        });
+        card.setAttribute("id", task.id);
+        card.classList.add("card");
+        card.setAttribute("description", task.description);
+        card.setAttribute("title", task.title);
+
         if (draggable) {
-          kanbanCard.setAttribute("draggable", "true");
-          kanbanCard.setAttribute("ondragstart", "drag(event)");
+          card.setAttribute("draggable", "true");
+          card.setAttribute("ondragstart", "drag(event)");
         }
+
+        const summary = document.createElement("summary");
+        summary.textContent = task.title;
+        card.appendChild(summary);
         const content = document.createElement("div");
-        content.setAttribute("id", `content-${task.id}`);
-        content.classList.add("content");
+        const menu = document.createElement("div");
+        card.classList.add("menu");
 
-        const title = document.createElement("h1");
+        const edit = document.createElement("a");
+        edit.setAttribute("href", `#edit?id=${task.id}`);
+        edit.textContent = "Edit";
 
-        title.setAttribute("id", `title-${task.id}`);
-        title.setAttribute("title", task.description);
-        title.textContent = task.title;
-        content.appendChild(title);
+        menu.appendChild(edit);
+        content.appendChild(menu);
 
         const description = document.createElement("div");
-        description.setAttribute("id", `description-${task.id}`);
-        description.classList.add("description");
         description.innerHTML = markdown.renderString(task.description);
-
-        if (!showDescription) description.classList.add("hidden");
         content.appendChild(description);
 
-        kanbanCard.appendChild(content);
-        return kanbanCard;
+        card.appendChild(content);
+
+        return card;
       }
 
       // here we should have a global state of cards state
@@ -436,30 +443,16 @@
         location.href = "#/";
       }
 
-      function viewTask(id) {
-        document.getElementById("previewedit").href = `#edit?id=${id}`;
-
-        const task = document.getElementById(`title-${id}`);
-        title = task.textContent;
-        description = task.title;
-
-        teprevtitle.textContent = title;
-        teprevdescription.innerHTML = markdown.renderString(description);
-
-        hide_element(board);
-        hide_element(edit);
-        show_element(view);
-      }
-
       function newTask(uuid) {
         let title = "";
         let description = "";
         if (uuid === null) {
           uuid = self.crypto.randomUUID();
         } else {
-          const task = document.getElementById(`title-${uuid}`);
-          title = task.textContent;
-          description = task.title;
+          const task = document.getElementById(`${uuid}`);
+          title = task.title;
+
+          description = task.getAttribute("description");
         }
 
         tti.value = title;
@@ -470,7 +463,6 @@
         tie.innerHTML = uuid;
 
         hide_element(board);
-        hide_element(view);
         show_element(edit);
 
         tti.focus();
@@ -481,6 +473,11 @@
       function allowDrop(ev) {
         ev.preventDefault();
         ev.target.classList.add("drag-over");
+        ev.target.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "center",
+        });
       }
 
       // Handle drag event
@@ -517,8 +514,64 @@
         // TODO: what to do with the localstorage? Should it be emptied for the case that the same name is used again? Should there be a button to remove localstorage?
       }
 
+      let touchStartX = 0;
+      let touchEndX = 0;
+
+      function scrollToNextElement(element, direction) {
+        const d = 500 * direction;
+
+        document
+          .getElementById("container")
+          .scrollBy({ left: d, behavior: "smooth" });
+      }
+
       document.querySelectorAll(".column").forEach((col) => {
         columns.push({ id: col.id, title: col.title });
+        col.addEventListener("click", (ev) => {
+          ev.target.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+            inline: "center",
+          });
+        });
+        col.addEventListener(
+          "touchstart",
+          (ev) => {
+            console.log("touchstart", ev);
+            touchStartX = ev.touches[0].clientX;
+          },
+          { passive: true },
+        );
+        container.addEventListener(
+          "touchmove",
+          (ev) => {
+            console.log("touchmove", ev);
+            touchEndX = event.touches[0].clientX;
+          },
+          { passive: true },
+        );
+
+        col.addEventListener(
+          "touchend",
+          (ev) => {
+            console.log("touchend", ev);
+            if (touchStartX - touchEndX > 50) {
+              scrollToNextElement(event.target, -1);
+            } else if (touchEndX - touchStartX > 50) {
+              scrollToNextElement(event.target, 1);
+            }
+          },
+          { passive: true },
+        );
+
+        col.addEventListener("touchstart", (ev) => {
+          ev.target.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+            inline: "center",
+          });
+        });
+
         col.addEventListener("dragleave", (event) => {
           event.target.classList.remove("drag-over");
         });
@@ -536,7 +589,7 @@
       // });
 
       getUnsyncedEvents().forEach((cc) => {
-        if (cc.action === "put") replaceElement(backlog, createKanbanCard(cc));
+        if (cc.action === "put") replaceElement(backlog, newTaskCard(cc));
         if (cc.action === "delete") document.getElementById(cc.id)?.remove();
         if (cc.action === "move")
           document
