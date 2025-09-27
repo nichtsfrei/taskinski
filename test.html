@@ -53,6 +53,28 @@
         margin-bottom: 0.5vh;
       }
 
+      .menu {
+        background-color: var(--bg-color-content);
+        border-radius: 8px;
+        border: 1px solid var(--acent-color);
+        padding: 0.5vh;
+        gap: 0.5vh;
+        margin-bottom: 0.5vh;
+        select {
+          background-color: var(--bg-color-content-box);
+          border-radius: 8px;
+          border: 1px solid var(--acent-color);
+          padding: 0.5vh;
+          margin: 0.5vh;
+        }
+        select:focus option:first-child {
+          display: none;
+        }
+        select:not(:focus) option:first-child {
+          display: block;
+        }
+      }
+
       #board,
       #taskedit {
         gap: 2vh;
@@ -149,10 +171,6 @@
       <!-- .column details[open] { -->
       <!--   width: 90vw; -->
       <!-- } -->
-
-      .card:hover {
-        background-color: var(--card-shadow);
-      }
 
       .card:last-child {
         margin-bottom: 0;
@@ -273,7 +291,6 @@
     <script>
       let columns = [];
       const board = document.getElementById("board");
-      const backlog = document.getElementById("c1");
 
       //TODO: rename or better create a module which holds them
       // TODO: get rid of those const
@@ -371,7 +388,7 @@
         if (title) {
           let event = put(id, title, description);
           const card = newTaskCard(storeEvent(event));
-          replaceElement(backlog, card);
+          replaceElement(columns[0], card);
         }
 
         location.href = "#/";
@@ -415,12 +432,45 @@
         card.appendChild(summary);
         const content = document.createElement("div");
         const menu = document.createElement("div");
-        card.classList.add("menu");
+        menu.classList.add("menu");
 
         const edit = document.createElement("a");
         edit.setAttribute("href", `#edit?id=${task.id}`);
         edit.textContent = "Edit";
 
+        const colselect = document.createElement("select");
+        const hidden = document.createElement("option");
+
+        hidden.textContent = "Select column";
+        hidden.selected = true;
+        hidden.disabled = true;
+        colselect.appendChild(hidden);
+
+        columns.forEach((col) => {
+          const opt = document.createElement("option");
+          opt.value = col.id;
+          opt.textContent = col.title;
+          colselect.appendChild(opt);
+        });
+
+        colselect.addEventListener("change", (event) => {
+          const col = document.getElementById(event.target.value);
+          col.appendChild(card);
+          storeEvent(move(card.id, null, event.target.value));
+
+          console.log("change colSelect", col);
+          col.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+            inline: "center",
+          });
+          card.open = false;
+          card.focus();
+
+          //TODO
+        });
+
+        menu.appendChild(colselect);
         menu.appendChild(edit);
         content.appendChild(menu);
 
@@ -473,6 +523,7 @@
       function allowDrop(ev) {
         ev.preventDefault();
         ev.target.classList.add("drag-over");
+        console.log("allowDrop", ev.target);
         ev.target.scrollIntoView({
           behavior: "smooth",
           block: "center",
@@ -514,62 +565,20 @@
         // TODO: what to do with the localstorage? Should it be emptied for the case that the same name is used again? Should there be a button to remove localstorage?
       }
 
-      let touchStartX = 0;
-      let touchEndX = 0;
-
-      function scrollToNextElement(element, direction) {
-        const d = 500 * direction;
-
-        document
-          .getElementById("container")
-          .scrollBy({ left: d, behavior: "smooth" });
-      }
-
       document.querySelectorAll(".column").forEach((col) => {
-        columns.push({ id: col.id, title: col.title });
+        columns.push(col);
         col.addEventListener("click", (ev) => {
-          ev.target.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-            inline: "center",
-          });
-        });
-        col.addEventListener(
-          "touchstart",
-          (ev) => {
-            console.log("touchstart", ev);
-            touchStartX = ev.touches[0].clientX;
-          },
-          { passive: true },
-        );
-        container.addEventListener(
-          "touchmove",
-          (ev) => {
-            console.log("touchmove", ev);
-            touchEndX = event.touches[0].clientX;
-          },
-          { passive: true },
-        );
-
-        col.addEventListener(
-          "touchend",
-          (ev) => {
-            console.log("touchend", ev);
-            if (touchStartX - touchEndX > 50) {
-              scrollToNextElement(event.target, -1);
-            } else if (touchEndX - touchStartX > 50) {
-              scrollToNextElement(event.target, 1);
-            }
-          },
-          { passive: true },
-        );
-
-        col.addEventListener("touchstart", (ev) => {
-          ev.target.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-            inline: "center",
-          });
+          // gets triggered even when it is not directly clicked, but an child element.
+          // maybe it is worth to think about target zones within a column
+          // instead of the actual column to trigger scroll on click.
+          // for now we just check if the target is actually a column
+          if (col.id === ev.target.id) {
+            ev.target.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+              inline: "center",
+            });
+          }
         });
 
         col.addEventListener("dragleave", (event) => {
@@ -580,16 +589,9 @@
       window.addEventListener("hashchange", routing);
       window.addEventListener("load", routing);
 
-      // tti.addEventListener("input", function () {
-      //   teprevtitle.textContent = this.value;
-      // });
-      //
-      // tde.addEventListener("input", function () {
-      //   teprevdescription.innerHTML = markdown.renderString(this.value);
-      // });
-
       getUnsyncedEvents().forEach((cc) => {
-        if (cc.action === "put") replaceElement(backlog, newTaskCard(cc));
+        if (cc.action === "put")
+          replaceElement(cc.column || columns[0], newTaskCard(cc));
         if (cc.action === "delete") document.getElementById(cc.id)?.remove();
         if (cc.action === "move")
           document
